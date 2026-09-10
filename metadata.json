@@ -1,0 +1,6 @@
+{
+  "name": "Bishwakarma Puja Management",
+  "description": "Offline desktop management system for Bishwakarma Puja committees with roles, financial tracking, receipts, charts, Excel export, and local backup/restore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

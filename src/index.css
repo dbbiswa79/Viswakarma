@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   PRINT STYLES: Strictly Show Only the Receipt / Voucher
+   Prevents background page, tables, navbars, and modal backdrops from printing.
+   ========================================================================== */
+
+@media print {
+  /* 1. Global Print Reset: clean white background, zero margins */
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 2. Completely hide all body content by default */
+  body * {
+    visibility: hidden !important;
+  }
+
+  /* 3. Specifically reveal only the active printable card and its descendants */
+  #printable-receipt-card,
+  #printable-receipt-card *,
+  #printable-voucher-card,
+  #printable-voucher-card *,
+  #printable-audit-card,
+  #printable-audit-card * {
+    visibility: visible !important;
+  }
+
+  /* 4. Position printable card cleanly at the very top-left of the printed page */
+  #printable-receipt-card {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-receipt-card > div {
+    border: 3px double #b45309 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    padding: 24px !important;
+    border-radius: 12px !important;
+  }
+
+  #printable-voucher-card {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  #printable-voucher-card > div {
+    border: 2px solid #334155 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    padding: 24px !important;
+    border-radius: 12px !important;
+  }
+
+  #printable-audit-card {
+    display: block !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* 5. Force-hide modal bars, overlays, navbar, main, footer, headers */
+  header,
+  nav,
+  main,
+  footer,
+  aside,
+  .print\:hidden,
+  .no-print,
+  #receipt-modal-backdrop > div > div:first-child,
+  #receipt-modal-backdrop > div > div:last-child,
+  #voucher-modal-backdrop > div > div:first-child,
+  #voucher-modal-backdrop > div > div:last-child,
+  #audit-report-modal-backdrop > div > div:first-child {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #receipt-modal-backdrop,
+  #voucher-modal-backdrop,
+  #audit-report-modal-backdrop {
+    position: static !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    inset: auto !important;
+  }
+
+  /* 6. Standard page settings */
+  @page {
+    size: A4 portrait;
+    margin: 10mm 15mm;
+  }
+}
