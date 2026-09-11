@@ -39,6 +39,7 @@ const DESIGNATIONS: MemberDesignation[] = [
   'Pandal & Decoration Lead',
   'Prasad & Bhog Coordinator',
   'Executive Member',
+  'Executive Committee Member & Key Patron',
   'Advisor',
   'Volunteer',
   'Patron / Senior Member',

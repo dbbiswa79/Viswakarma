@@ -6,11 +6,13 @@ import {
   ExpenseRecord,
   Member,
   CommitteeSettings,
+  AuditLogItem,
   canEditData,
 } from './types';
 import { storageService } from './services/storageService';
 import { excelService } from './services/excelService';
 import { standaloneHtmlService } from './services/standaloneHtmlService';
+import { getSecurityAuditContext } from './services/networkService';
 import { Navbar } from './components/Navbar';
 import { DashboardView } from './components/DashboardView';
 import { IncomeView } from './components/IncomeView';
@@ -24,16 +26,15 @@ import { BackupRestoreModal } from './components/BackupRestoreModal';
 import { ReceiptPrintModal } from './components/ReceiptPrintModal';
 import { ExpenseVoucherPrintModal } from './components/ExpenseVoucherPrintModal';
 import { AuditReportPrintModal } from './components/AuditReportPrintModal';
-import { ShieldAlert, KeyRound, Sparkles } from 'lucide-react';
+import { ShieldAlert, KeyRound, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
   const [appState, setAppState] = useState<PujaManagementState>(() =>
     storageService.getInitialState()
   );
+  // Online mode: enforce explicit password authentication before login, no auto-login bypass
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
-    const saved = storageService.getCurrentUser();
-    // Default to admin user for immediate seamless desktop access
-    return saved || storageService.getInitialState().users[0];
+    return storageService.getCurrentUser() || null;
   });
 
   const [currentTab, setCurrentTab] = useState<
@@ -41,14 +42,18 @@ export default function App() {
   >('dashboard');
 
   // Modals
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(() => {
+    return !storageService.getCurrentUser();
+  });
   const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
+  const [passwordTargetUser, setPasswordTargetUser] = useState<UserAccount | null>(null);
   const [isBackupRestoreModalOpen, setIsBackupRestoreModalOpen] = useState(false);
   const [selectedIncomeForReceipt, setSelectedIncomeForReceipt] =
     useState<IncomeRecord | null>(null);
   const [selectedExpenseForVoucher, setSelectedExpenseForVoucher] =
     useState<ExpenseRecord | null>(null);
   const [isAuditReportModalOpen, setIsAuditReportModalOpen] = useState(false);
+  const [htmlSavedToast, setHtmlSavedToast] = useState<string | null>(null);
 
   // Quick action shortcut triggers
   const [triggerIncomeAdd, setTriggerIncomeAdd] = useState(false);
@@ -91,30 +96,43 @@ export default function App() {
     setIsLoginModalOpen(true);
   };
 
-  // Handle Password Change
-  const handlePasswordChanged = (newPassword: string) => {
-    if (!currentUser) return;
+  // Handle Open Change Password Modal
+  const handleOpenChangePassword = (target?: UserAccount) => {
+    setPasswordTargetUser(target || currentUser);
+    setIsChangePasswordModalOpen(true);
+  };
+
+  // Handle Password Change for any user account at any time with security auditing
+  const handlePasswordChanged = async (targetId: string, newPassword: string) => {
+    const auditContext = await getSecurityAuditContext();
 
     updateStateAndPersist((prev) => {
+      const targetUser = prev.users.find((u) => u.id === targetId);
       const updatedUsers = prev.users.map((u) =>
-        u.id === currentUser.id
+        u.id === targetId
           ? { ...u, passwordHash: newPassword, mustChangePassword: false }
           : u
       );
-      const updatedCurrentUser = {
-        ...currentUser,
-        passwordHash: newPassword,
-        mustChangePassword: false,
-      };
-      setCurrentUser(updatedCurrentUser);
-      storageService.setCurrentUser(updatedCurrentUser);
 
-      const logItem = {
+      if (currentUser && currentUser.id === targetId) {
+        const updatedCurrentUser = {
+          ...currentUser,
+          passwordHash: newPassword,
+          mustChangePassword: false,
+        };
+        setCurrentUser(updatedCurrentUser);
+        storageService.setCurrentUser(updatedCurrentUser);
+      }
+
+      const logItem: AuditLogItem = {
         id: 'log_' + Date.now(),
-        timestamp: new Date().toISOString(),
-        action: 'Password Changed',
-        details: `User ${currentUser.username} updated security password.`,
-        user: currentUser.username,
+        timestamp: auditContext.isoTimestamp,
+        exactTimestamp: auditContext.exactTimestamp,
+        action: 'Password Changed (Security Event)',
+        details: `Password updated for account "${targetUser?.username || targetId}". IP: ${auditContext.ipAddress} | Recorded At: ${auditContext.exactTimestamp} | Client: ${auditContext.clientContext} | Changed by: ${currentUser?.username || 'system'}`,
+        user: currentUser?.username || 'system',
+        ipAddress: auditContext.ipAddress,
+        clientContext: auditContext.clientContext,
       };
 
       return {
@@ -460,11 +478,38 @@ export default function App() {
         currentUser={currentUser}
         settings={appState.settings}
         onOpenExcelExport={() => excelService.exportCompletePujaWorkbook(appState)}
-        onOpenSaveHtml={() => standaloneHtmlService.downloadStandaloneApp(appState)}
+        onOpenSaveHtml={() => {
+          standaloneHtmlService.downloadStandaloneApp(appState);
+          const hasBiswa = appState.members.some(
+            (m) => m.phone === '9437080999' || m.fullName.toLowerCase().includes('biswaranjan')
+          );
+          setHtmlSavedToast(
+            `Saved Bishwakarma_Puja_Management.html! Includes ${hasBiswa ? 'Mr Biswaranjan (9437080999) and ' : ''}${appState.members.length} committee members, full income receipts, and expenses. Open directly in Chrome or Edge!`
+          );
+          setTimeout(() => setHtmlSavedToast(null), 7000);
+        }}
         onOpenBackupRestore={() => setIsBackupRestoreModalOpen(true)}
-        onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+        onOpenChangePassword={() => handleOpenChangePassword(currentUser || undefined)}
         onLogout={handleLogout}
       />
+
+      {/* Standalone HTML Save Confirmation Toast */}
+      {htmlSavedToast && (
+        <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs font-semibold shadow-md print:hidden animate-in fade-in slide-in-from-top duration-300">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-200 shrink-0" />
+              <span>{htmlSavedToast}</span>
+            </div>
+            <button
+              onClick={() => setHtmlSavedToast(null)}
+              className="text-emerald-100 hover:text-white text-xs px-2 py-0.5 rounded hover:bg-emerald-700 transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Body Content Container */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 pt-6">
@@ -556,7 +601,7 @@ export default function App() {
             auditLogs={appState.auditLogs}
             currentUser={currentUser}
             onSaveSettings={handleSaveSettings}
-            onOpenChangePassword={() => setIsChangePasswordModalOpen(true)}
+            onOpenChangePassword={handleOpenChangePassword}
             canEdit={canEdit}
           />
         )}
@@ -575,9 +620,14 @@ export default function App() {
       {isChangePasswordModalOpen && currentUser && (
         <ChangePasswordModal
           currentUser={currentUser}
+          targetUser={passwordTargetUser || currentUser}
+          allUsers={appState.users}
           onPasswordChanged={handlePasswordChanged}
-          onClose={() => setIsChangePasswordModalOpen(false)}
-          isMandatory={isDefaultAdminNeedsPasswordChange}
+          onClose={() => {
+            setIsChangePasswordModalOpen(false);
+            setPasswordTargetUser(null);
+          }}
+          isMandatory={false}
         />
       )}
 

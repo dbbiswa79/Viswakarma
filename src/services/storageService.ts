@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: CommitteeSettings = {
   secretaryName: 'Sri Amit Kumar Verma',
   treasurerName: 'Sri Manoj Vishwakarma',
   auditorName: 'Sri Sanjeev Roy (Chartered Auditor)',
-  contactPhone: '+91 98765 43210',
+  contactPhone: '9437080999',
   contactEmail: 'committee@bishwakarmapuja.org',
   receiptPrefix: 'BK-REC',
   expensePrefix: 'BK-EXP',
@@ -45,10 +45,54 @@ export const DEFAULT_ADMIN: UserAccount = {
   username: 'admin',
   fullName: 'Committee System Administrator',
   role: 'admin',
-  passwordHash: 'admin123', // Initial plain/hash for offline desktop operation
-  mustChangePassword: true, // Trigger mandatory prompt to change password as requested
+  passwordHash: 'admin123',
+  mustChangePassword: false,
   createdAt: '2025-08-01T10:00:00.000Z',
 };
+
+export const DEFAULT_SECRETARY: UserAccount = {
+  id: 'usr_secretary_01',
+  username: 'secretary',
+  fullName: 'Sri Amit Kumar Verma (General Secretary)',
+  role: 'secretary',
+  passwordHash: 'admin123',
+  createdAt: '2025-08-01T10:00:00.000Z',
+};
+
+export const DEFAULT_TREASURER: UserAccount = {
+  id: 'usr_treasurer_01',
+  username: 'treasurer',
+  fullName: 'Sri Manoj Vishwakarma (Treasurer)',
+  role: 'treasurer',
+  passwordHash: 'admin123',
+  createdAt: '2025-08-01T10:00:00.000Z',
+};
+
+export const DEFAULT_EDITOR: UserAccount = {
+  id: 'usr_editor_01',
+  username: 'editor',
+  fullName: 'Sri Pradeep Roy (Records & Editorial In-charge)',
+  role: 'editor',
+  passwordHash: 'admin123',
+  createdAt: '2025-08-01T10:00:00.000Z',
+};
+
+export const DEFAULT_AUDITOR: UserAccount = {
+  id: 'usr_auditor_01',
+  username: 'auditor',
+  fullName: 'Sri Sanjeev Roy (Chartered Auditor)',
+  role: 'auditor',
+  passwordHash: 'admin123',
+  createdAt: '2025-08-01T10:00:00.000Z',
+};
+
+export const INITIAL_USERS: UserAccount[] = [
+  DEFAULT_ADMIN,
+  DEFAULT_SECRETARY,
+  DEFAULT_TREASURER,
+  DEFAULT_EDITOR,
+  DEFAULT_AUDITOR,
+];
 
 export const INITIAL_MEMBERS: Member[] = [
   {
@@ -128,6 +172,19 @@ export const INITIAL_MEMBERS: Member[] = [
     status: 'active',
     joinedDate: '2025-08-10',
     notes: 'Sound system, social media and lighting volunteer',
+  },
+  {
+    id: 'mem_07',
+    memberCode: 'MEM-007',
+    fullName: 'Mr Biswaranjan',
+    designation: 'Executive Committee Member & Key Patron',
+    phone: '9437080999',
+    address: 'Sector 4, Main Road, Committee Office',
+    bloodGroup: 'O+',
+    contributedAmount: 11000,
+    status: 'active',
+    joinedDate: '2025-08-01',
+    notes: 'Key patron, executive committee coordination & chanda support',
   },
 ];
 
@@ -236,6 +293,22 @@ export const INITIAL_INCOMES: IncomeRecord[] = [
     notes: 'Vehicle owners & drivers community chanda',
     createdAt: '2025-08-28T18:00:00.000Z',
   },
+  {
+    id: 'inc_08',
+    receiptNumber: 'BK-REC-2025-008',
+    date: '2025-08-29',
+    donorName: 'Mr Biswaranjan',
+    memberId: 'mem_07',
+    phone: '9437080999',
+    address: 'Sector 4, Main Road, Committee Office',
+    category: 'Member Subscription',
+    amount: 11000,
+    paymentMode: 'UPI / QR Code',
+    transactionRef: 'UPI-9437080999-BK',
+    collectedBy: 'Sri Manoj Vishwakarma',
+    notes: 'Bishwakarma Puja Member Chanda & Special Subscription',
+    createdAt: '2025-08-29T11:00:00.000Z',
+  },
 ];
 
 export const INITIAL_EXPENSES: ExpenseRecord[] = [
@@ -328,16 +401,92 @@ export const storageService = {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && parsed.settings && parsed.users) {
-          // Ensure Secretary role account exists
+          // Ensure all standard committee user accounts exist
+          let hasMigrated = false;
           if (!parsed.users.some((u: UserAccount) => u.username === 'secretary' || u.role === 'secretary')) {
-            parsed.users.push({
-              id: 'usr_secretary',
-              username: 'secretary',
-              fullName: 'Amit Kumar Verma (General Secretary)',
-              role: 'secretary',
-              passwordHash: 'secretary123',
-              createdAt: '2025-08-01T10:00:00.000Z',
-            });
+            parsed.users.push(DEFAULT_SECRETARY);
+            hasMigrated = true;
+          }
+          if (!parsed.users.some((u: UserAccount) => u.username === 'treasurer' || u.role === 'treasurer')) {
+            parsed.users.push(DEFAULT_TREASURER);
+            hasMigrated = true;
+          }
+          if (!parsed.users.some((u: UserAccount) => u.username === 'editor' || u.role === 'editor')) {
+            parsed.users.push(DEFAULT_EDITOR);
+            hasMigrated = true;
+          }
+          if (!parsed.users.some((u: UserAccount) => u.username === 'auditor' || u.role === 'auditor')) {
+            parsed.users.push(DEFAULT_AUDITOR);
+            hasMigrated = true;
+          }
+          if (!parsed.users.some((u: UserAccount) => u.username === 'admin' || u.role === 'admin')) {
+            parsed.users.unshift(DEFAULT_ADMIN);
+            hasMigrated = true;
+          }
+
+          // Standardize default password to 'admin123' across all accounts if using legacy role passwords
+          const legacyDefaultPasswords = ['secretary123', 'treasurer123', 'editor123', 'auditor123'];
+          parsed.users.forEach((u: UserAccount) => {
+            if (legacyDefaultPasswords.includes(u.passwordHash)) {
+              u.passwordHash = 'admin123';
+              hasMigrated = true;
+            }
+          });
+
+          // Ensure Mr Biswaranjan (Phone: 9437080999) exists in committee members
+          if (
+            Array.isArray(parsed.members) &&
+            !parsed.members.some(
+              (m: Member) =>
+                m.phone === '9437080999' ||
+                (m.fullName && m.fullName.toLowerCase().includes('biswaranjan'))
+            )
+          ) {
+            const biswaMember: Member = {
+              id: 'mem_07',
+              memberCode: `MEM-${String(parsed.members.length + 1).padStart(3, '0')}`,
+              fullName: 'Mr Biswaranjan',
+              designation: 'Executive Committee Member & Key Patron',
+              phone: '9437080999',
+              address: 'Sector 4, Main Road, Committee Office',
+              bloodGroup: 'O+',
+              contributedAmount: 11000,
+              status: 'active',
+              joinedDate: '2025-08-01',
+              notes: 'Key patron, executive committee coordination & chanda support',
+            };
+            parsed.members.push(biswaMember);
+            hasMigrated = true;
+
+            // Ensure donation record exists for Mr Biswaranjan
+            if (
+              Array.isArray(parsed.incomes) &&
+              !parsed.incomes.some(
+                (i: IncomeRecord) =>
+                  i.phone === '9437080999' ||
+                  (i.donorName && i.donorName.toLowerCase().includes('biswaranjan'))
+              )
+            ) {
+              parsed.incomes.unshift({
+                id: 'inc_08',
+                receiptNumber: `BK-REC-2025-${String(parsed.incomes.length + 1).padStart(3, '0')}`,
+                date: '2025-08-29',
+                donorName: 'Mr Biswaranjan',
+                memberId: biswaMember.id,
+                phone: '9437080999',
+                address: 'Sector 4, Main Road, Committee Office',
+                category: 'Member Subscription',
+                amount: 11000,
+                paymentMode: 'UPI / QR Code',
+                transactionRef: 'UPI-9437080999-BK',
+                collectedBy: parsed.settings?.treasurerName || 'Sri Manoj Vishwakarma',
+                notes: 'Bishwakarma Puja Member Chanda & Special Subscription',
+                createdAt: '2025-08-29T11:00:00.000Z',
+              });
+            }
+          }
+
+          if (hasMigrated) {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
           }
           return parsed;
@@ -349,33 +498,7 @@ export const storageService = {
 
     const defaultState: PujaManagementState = {
       settings: DEFAULT_SETTINGS,
-      users: [
-        DEFAULT_ADMIN,
-        {
-          id: 'usr_secretary',
-          username: 'secretary',
-          fullName: 'Amit Kumar Verma (General Secretary)',
-          role: 'secretary',
-          passwordHash: 'secretary123',
-          createdAt: '2025-08-01T10:00:00.000Z',
-        },
-        {
-          id: 'usr_treasurer',
-          username: 'treasurer',
-          fullName: 'Manoj Vishwakarma (Treasurer)',
-          role: 'treasurer',
-          passwordHash: 'treasurer123',
-          createdAt: '2025-08-01T10:00:00.000Z',
-        },
-        {
-          id: 'usr_auditor',
-          username: 'auditor',
-          fullName: 'Sanjeev Roy (Auditor)',
-          role: 'auditor',
-          passwordHash: 'auditor123',
-          createdAt: '2025-08-01T10:00:00.000Z',
-        },
-      ],
+      users: INITIAL_USERS,
       members: INITIAL_MEMBERS,
       incomes: INITIAL_INCOMES,
       expenses: INITIAL_EXPENSES,
@@ -448,25 +571,7 @@ export const storageService = {
   resetToDefault(): PujaManagementState {
     const defaultState: PujaManagementState = {
       settings: DEFAULT_SETTINGS,
-      users: [
-        DEFAULT_ADMIN,
-        {
-          id: 'usr_treasurer',
-          username: 'treasurer',
-          fullName: 'Manoj Vishwakarma (Treasurer)',
-          role: 'treasurer',
-          passwordHash: 'treasurer123',
-          createdAt: '2025-08-01T10:00:00.000Z',
-        },
-        {
-          id: 'usr_auditor',
-          username: 'auditor',
-          fullName: 'Sanjeev Roy (Auditor)',
-          role: 'auditor',
-          passwordHash: 'auditor123',
-          createdAt: '2025-08-01T10:00:00.000Z',
-        },
-      ],
+      users: INITIAL_USERS,
       members: INITIAL_MEMBERS,
       incomes: INITIAL_INCOMES,
       expenses: INITIAL_EXPENSES,

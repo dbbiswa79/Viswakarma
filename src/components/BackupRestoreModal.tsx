@@ -42,9 +42,12 @@ export const BackupRestoreModal: React.FC<BackupRestoreModalProps> = ({
 
   const handleDownloadStandaloneHtml = () => {
     standaloneHtmlService.downloadStandaloneApp(state);
+    const hasBiswa = state.members.some(
+      (m) => m.phone === '9437080999' || m.fullName.toLowerCase().includes('biswaranjan')
+    );
     setRestoreStatus({
       type: 'success',
-      msg: 'Bishwakarma_Puja_Management.html saved! Double-click to open directly in Chrome or Edge without internet.',
+      msg: `Bishwakarma_Puja_Management.html saved! Includes ${hasBiswa ? 'Mr Biswaranjan (9437080999) and ' : ''}all ${state.members.length} committee members & ledger records. Double-click to open in Chrome or Edge without internet.`,
     });
   };
 

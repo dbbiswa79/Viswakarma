@@ -63,8 +63,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             <p className="text-[11px] text-slate-400 flex items-center gap-2">
               <span>{settings.venue}</span>
               <span>&bull;</span>
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
-                <WifiOff className="w-3 h-3" /> Strict Offline Desktop Mode
+              <span className="inline-flex items-center gap-1.5 text-emerald-400 font-semibold bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[11px]">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Online Mode
               </span>
             </p>
           </div>
@@ -106,56 +107,50 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
 
           {/* User Account / Password status */}
-          {currentUser && (
+          {currentUser ? (
             <div className="flex items-center gap-2 pl-2 border-l border-slate-700">
+              <div className="hidden sm:flex items-center gap-1.5 px-2 py-1 bg-slate-800/90 border border-slate-700 rounded-lg text-xs">
+                <span className="font-bold text-slate-200 font-mono">{currentUser.username}</span>
+                <span
+                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase ${
+                    canEditData(currentUser.role)
+                      ? 'bg-emerald-950 text-emerald-300 border-emerald-500/40'
+                      : 'bg-slate-700 text-slate-300 border-slate-600'
+                  }`}
+                >
+                  {currentUser.role}
+                </span>
+              </div>
+
               <button
                 id="btn-nav-change-pwd"
                 onClick={onOpenChangePassword}
-                title={
-                  isDefaultAdminPassword
-                    ? 'Action required: Click to change default password!'
-                    : 'Change password'
-                }
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  isDefaultAdminPassword
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 animate-pulse'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                }`}
+                title="Change password at any time"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
               >
-                {isDefaultAdminPassword ? (
-                  <>
-                    <ShieldAlert className="w-3.5 h-3.5 text-slate-950" />
-                    <span>Change Default Password</span>
-                  </>
-                ) : (
-                  <>
-                    <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{currentUser.username}</span>
-                    <span
-                      className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                        canEditData(currentUser.role)
-                          ? 'bg-emerald-950/80 text-emerald-300 border-emerald-500/40'
-                          : 'bg-slate-800 text-slate-400 border-slate-600'
-                      }`}
-                      title={
-                        canEditData(currentUser.role)
-                          ? 'Allowed to edit data (Admin, Secretary, Treasurer)'
-                          : 'View-Only Access (Editing restricted to Admin, Secretary & Treasurer)'
-                      }
-                    >
-                      {currentUser.role} &bull; {canEditData(currentUser.role) ? 'Editor' : 'View-Only'}
-                    </span>
-                  </>
-                )}
+                <KeyRound className="w-3.5 h-3.5 text-amber-200" />
+                <span>Change Password</span>
               </button>
 
               <button
                 id="btn-nav-logout"
                 onClick={onLogout}
-                title="Log out / Switch account"
-                className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                title="Log out from committee desk"
+                className="inline-flex items-center gap-1 p-1.5 text-slate-300 hover:text-rose-300 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer text-xs font-medium"
               >
                 <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">Logout</span>
+              </button>
+            </div>
+          ) : (
+            <div className="pl-2 border-l border-slate-700">
+              <button
+                id="btn-nav-login-prompt"
+                onClick={onLogout}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+              >
+                <KeyRound className="w-3.5 h-3.5" />
+                <span>Sign In</span>
               </button>
             </div>
           )}

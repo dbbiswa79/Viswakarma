@@ -177,6 +177,38 @@ export const excelService = {
     const wsCategories = XLSX.utils.aoa_to_sheet(categoryData);
     XLSX.utils.book_append_sheet(wb, wsCategories, 'Category_Breakdown');
 
+    // 5. Audit Trail & Security Events Sheet
+    if (state.auditLogs && state.auditLogs.length > 0) {
+      const auditData: any[][] = [
+        ['BISHWAKARMA PUJA COMMITTEE — AUDIT TRAIL & SECURITY EVENT LOG'],
+        ['Total Recorded Events', state.auditLogs.length],
+        ['Generated On', new Date().toLocaleString('en-IN')],
+        [],
+        [
+          'Exact Timestamp',
+          'Action',
+          'Details / Security Record',
+          'Authorized User',
+          'Client IP Address',
+          'Client System Context',
+          'ISO Timestamp',
+        ],
+      ];
+      state.auditLogs.forEach((log) => {
+        auditData.push([
+          log.exactTimestamp || log.timestamp,
+          log.action,
+          log.details,
+          log.user,
+          log.ipAddress || 'Local/Internal Client',
+          log.clientContext || 'Browser Portal',
+          log.timestamp,
+        ]);
+      });
+      const wsAudit = XLSX.utils.aoa_to_sheet(auditData);
+      XLSX.utils.book_append_sheet(wb, wsAudit, 'Audit_Security_Trail');
+    }
+
     // Generate and trigger download
     const filename = `Bishwakarma_Puja_Financials_${settings.pujaYear.replace(
       /[^a-z0-9]/gi,

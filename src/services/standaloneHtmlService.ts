@@ -1,4 +1,4 @@
-import { PujaManagementState } from '../types';
+import { PujaManagementState, Member, IncomeRecord } from '../types';
 
 export const standaloneHtmlService = {
   /**
@@ -8,14 +8,195 @@ export const standaloneHtmlService = {
    * with zero external server or internet connectivity required.
    */
   downloadStandaloneApp(state: PujaManagementState): void {
-    const serializedData = JSON.stringify(state).replace(/</g, '\\u003c');
+    // 1. Ensure Mr Biswaranjan (Phone: 9437080999) is guaranteed present in effective data
+    const effectiveState: PujaManagementState = {
+      ...state,
+      members: [...state.members],
+      incomes: [...state.incomes],
+      expenses: [...state.expenses],
+      users: [...state.users],
+      settings: { ...state.settings },
+    };
+
+    if (
+      !effectiveState.members.some(
+        (m) =>
+          m.phone === '9437080999' ||
+          (m.fullName && m.fullName.toLowerCase().includes('biswaranjan'))
+      )
+    ) {
+      const biswaMember: Member = {
+        id: 'mem_07',
+        memberCode: `MEM-${String(effectiveState.members.length + 1).padStart(3, '0')}`,
+        fullName: 'Mr Biswaranjan',
+        designation: 'Executive Committee Member & Key Patron',
+        phone: '9437080999',
+        address: 'Sector 4, Main Road, Committee Office',
+        bloodGroup: 'O+',
+        contributedAmount: 11000,
+        status: 'active',
+        joinedDate: '2025-08-01',
+        notes: 'Key patron, executive committee coordination & chanda support',
+      };
+      effectiveState.members.push(biswaMember);
+
+      if (
+        !effectiveState.incomes.some(
+          (i) =>
+            i.phone === '9437080999' ||
+            (i.donorName && i.donorName.toLowerCase().includes('biswaranjan'))
+        )
+      ) {
+        effectiveState.incomes.unshift({
+          id: 'inc_08',
+          receiptNumber: `BK-REC-2025-${String(effectiveState.incomes.length + 1).padStart(3, '0')}`,
+          date: '2025-08-29',
+          donorName: 'Mr Biswaranjan',
+          memberId: biswaMember.id,
+          phone: '9437080999',
+          address: 'Sector 4, Main Road, Committee Office',
+          category: 'Member Subscription',
+          amount: 11000,
+          paymentMode: 'UPI / QR Code',
+          transactionRef: 'UPI-9437080999-BK',
+          collectedBy: effectiveState.settings.treasurerName || 'Sri Manoj Vishwakarma',
+          notes: 'Bishwakarma Puja Member Chanda & Special Subscription',
+          createdAt: '2025-08-29T11:00:00.000Z',
+        });
+      }
+    }
+
+    // Recalculate member contributions to ensure accuracy
+    const memberContributionSums = new Map<string, number>();
+    effectiveState.incomes.forEach((i) => {
+      if (i.memberId) {
+        const current = memberContributionSums.get(i.memberId) || 0;
+        memberContributionSums.set(i.memberId, current + Number(i.amount || 0));
+      }
+    });
+
+    effectiveState.members = effectiveState.members.map((m) => {
+      if (memberContributionSums.has(m.id)) {
+        return { ...m, contributedAmount: memberContributionSums.get(m.id)! };
+      }
+      return m;
+    });
+
+    const totalIncome = effectiveState.incomes.reduce(
+      (sum, i) => sum + Number(i.amount || 0),
+      0
+    );
+    const totalExpense = effectiveState.expenses.reduce(
+      (sum, e) => sum + Number(e.amount || 0),
+      0
+    );
+    const netBalance = totalIncome - totalExpense;
+    const targetBudget = Number(effectiveState.settings.targetBudget || 0);
+    const budgetPct = targetBudget > 0 ? Math.round((totalExpense / targetBudget) * 100) : 0;
+    const cur = effectiveState.settings.currency || '₹';
+
+    const serializedData = JSON.stringify(effectiveState).replace(/</g, '\\u003c');
+    const exportTimestamp = Date.now();
+
+    // 2. Pre-rendered HTML content for instant offline viewing and raw text search (Notepad, Ctrl+F)
+    const preRenderedMembersRows = effectiveState.members
+      .map(
+        (m) => `
+          <tr>
+            <td><strong>${m.memberCode}</strong></td>
+            <td><strong>${m.fullName}</strong></td>
+            <td><span class="tag tag-upi">${m.designation}</span></td>
+            <td><strong>${m.phone}</strong></td>
+            <td style="color:#16a34a; font-weight:600;">${cur}${Number(m.contributedAmount || 0).toLocaleString('en-IN')}</td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const preRenderedIncomeRows = effectiveState.incomes
+      .map(
+        (i) => `
+          <tr>
+            <td><strong>${i.receiptNumber}</strong></td>
+            <td>${i.date}</td>
+            <td><strong>${i.donorName}</strong></td>
+            <td><strong>${i.phone || '-'}</strong></td>
+            <td>${i.category}</td>
+            <td><span class="tag tag-upi">${i.paymentMode}</span></td>
+            <td style="font-weight:700; color:#16a34a;">${cur}${Number(i.amount || 0).toLocaleString('en-IN')}</td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; color:#b45309;" onclick="viewReceiptPrint('${i.id}')">Receipt</button>
+                <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; color:#dc2626;" onclick="deleteIncomeRecord('${i.id}')">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const preRenderedExpenseRows = effectiveState.expenses
+      .map(
+        (e) => `
+          <tr>
+            <td><strong>${e.voucherNumber}</strong></td>
+            <td>${e.date}</td>
+            <td><strong>${e.payeeName}</strong></td>
+            <td>${e.category}</td>
+            <td><span class="tag tag-cash">${e.paymentMode}</span></td>
+            <td style="font-weight:700; color:#dc2626;">${cur}${Number(e.amount || 0).toLocaleString('en-IN')}</td>
+            <td>${e.authorizedBy || '-'}</td>
+            <td>
+              <div style="display:flex; gap:6px;">
+                <button class="btn btn-outline" style="padding:4px 8px; font-size:11px; color:#dc2626;" onclick="deleteExpenseRecord('${e.id}')">Delete</button>
+              </div>
+            </td>
+          </tr>
+        `
+      )
+      .join('');
+
+    const combinedRecent = [
+      ...effectiveState.incomes.map((i) => ({
+        type: 'Income',
+        ...i,
+        ref: i.receiptNumber,
+        party: i.donorName,
+      })),
+      ...effectiveState.expenses.map((e) => ({
+        type: 'Expense',
+        ...e,
+        ref: e.voucherNumber,
+        party: e.payeeName,
+      })),
+    ]
+      .sort((a, b) => new Date(b.date || '').getTime() - new Date(a.date || '').getTime())
+      .slice(0, 8);
+
+    const preRenderedRecentRows = combinedRecent
+      .map(
+        (item) => `
+        <tr>
+          <td><span class="tag ${item.type === 'Income' ? 'tag-cash' : 'tag-bank'}">${item.type}</span></td>
+          <td><strong>${item.ref}</strong></td>
+          <td>${item.date}</td>
+          <td><strong>${item.party}</strong></td>
+          <td>${item.category}</td>
+          <td>${item.paymentMode}</td>
+          <td style="font-weight:700; color:${item.type === 'Income' ? '#16a34a' : '#dc2626'}">
+            ${item.type === 'Income' ? '+' : '-'}${cur}${Number(item.amount || 0).toLocaleString('en-IN')}
+          </td>
+        </tr>
+      `
+      )
+      .join('');
 
     const htmlContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${state.settings.committeeName} — Offline Desktop Management</title>
+  <title>${effectiveState.settings.committeeName} — Offline Desktop Management</title>
   <style>
     :root {
       --primary: #d97706;
@@ -48,6 +229,8 @@ export const standaloneHtmlService = {
     .btn:hover { background: var(--primary-dark); }
     .btn-secondary { background: #475569; }
     .btn-secondary:hover { background: #334155; }
+    .btn-warning { background: #f59e0b; color: #0f172a; font-weight: 700; }
+    .btn-warning:hover { background: #d97706; color: white; }
     .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
     .btn-outline:hover { background: #f1f5f9; }
     .card { background: var(--card-bg); border-radius: 12px; border: 1px solid var(--border); padding: 20px; margin-bottom: 24px; }
@@ -66,7 +249,7 @@ export const standaloneHtmlService = {
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; color: #334155; }
     .form-control { width: 100%; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; }
-    .receipt-box { border: 2px dashed #d97706; padding: 24px; background: #fffbeb; border-radius: 8px; }
+    .banner-notify { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; padding: 10px 16px; border-radius: 8px; font-size: 12px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
     @media print {
       body { background: white !important; padding: 0 !important; margin: 0 !important; }
       header, nav, main, .no-print, .modal-overlay:not(#modal-receipt-print) { display: none !important; }
@@ -80,11 +263,13 @@ export const standaloneHtmlService = {
 <body>
   <header>
     <div class="header-title">
-      <h1 id="hdr-comm-name">${state.settings.committeeName}</h1>
-      <p id="hdr-puja-meta">Bishwakarma Puja Edition ${state.settings.pujaYear} &bull; ${state.settings.venue}</p>
+      <h1 id="hdr-comm-name">${effectiveState.settings.committeeName}</h1>
+      <p id="hdr-puja-meta">Bishwakarma Puja Edition ${effectiveState.settings.pujaYear} &bull; ${effectiveState.settings.venue}</p>
     </div>
-    <div style="display:flex; align-items:center; gap: 12px;">
-      <span class="badge-offline">Strictly Offline Desktop Edition</span>
+    <div style="display:flex; align-items:center; gap: 8px; flex-wrap: wrap;">
+      <span class="badge-offline">Offline Desktop App</span>
+      <button class="btn btn-warning" onclick="downloadUpdatedHtml()" title="Save changes directly into an updated Bishwakarma_Puja_Management.html file">Save Updated HTML</button>
+      <button class="btn btn-outline" style="color:white; border-color:#64748b;" onclick="resetToEmbeddedData()" title="Reset data back to the original content embedded inside this HTML file">Reset to File Data</button>
       <button class="btn btn-outline" style="color:white; border-color:#64748b;" onclick="saveAndBackupLocal()">Backup JSON</button>
     </div>
   </header>
@@ -103,23 +288,23 @@ export const standaloneHtmlService = {
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">Total Collection (Income)</div>
-          <div class="stat-value" id="kpi-total-income" style="color:#16a34a;">₹0</div>
-          <div class="stat-sub" id="kpi-income-count">0 donations</div>
+          <div class="stat-value" id="kpi-total-income" style="color:#16a34a;">${cur}${totalIncome.toLocaleString('en-IN')}</div>
+          <div class="stat-sub" id="kpi-income-count">${effectiveState.incomes.length} donations logged</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Total Expenditure</div>
-          <div class="stat-value" id="kpi-total-expense" style="color:#dc2626;">₹0</div>
-          <div class="stat-sub" id="kpi-expense-count">0 vouchers</div>
+          <div class="stat-value" id="kpi-total-expense" style="color:#dc2626;">${cur}${totalExpense.toLocaleString('en-IN')}</div>
+          <div class="stat-sub" id="kpi-expense-count">${effectiveState.expenses.length} vouchers logged</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Net Balance Available</div>
-          <div class="stat-value" id="kpi-net-balance">₹0</div>
-          <div class="stat-sub" id="kpi-balance-sub">Cash + Bank</div>
+          <div class="stat-value" id="kpi-net-balance">${cur}${netBalance.toLocaleString('en-IN')}</div>
+          <div class="stat-sub" id="kpi-balance-sub">Cash in Hand + Bank</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Target Budget</div>
-          <div class="stat-value" id="kpi-target-budget">₹0</div>
-          <div class="stat-sub" id="kpi-budget-progress">0% utilized</div>
+          <div class="stat-value" id="kpi-target-budget">${cur}${targetBudget.toLocaleString('en-IN')}</div>
+          <div class="stat-sub" id="kpi-budget-progress">${budgetPct}% of budget utilized</div>
         </div>
       </div>
 
@@ -143,7 +328,9 @@ export const standaloneHtmlService = {
               <th>Amount</th>
             </tr>
           </thead>
-          <tbody id="tbody-recent"></tbody>
+          <tbody id="tbody-recent">
+            ${preRenderedRecentRows || '<tr><td colspan="7" style="text-align:center; padding:20px; color:#94a3b8;">No records logged yet.</td></tr>'}
+          </tbody>
         </table>
       </div>
     </div>
@@ -154,7 +341,7 @@ export const standaloneHtmlService = {
         <div class="card-header">
           <div class="card-title">All Income & Donations (Chanda Register)</div>
           <div style="display:flex; gap: 8px;">
-            <input type="text" id="filter-income-search" class="form-control" style="width:200px;" placeholder="Search donor / receipt..." oninput="renderIncomeTable()">
+            <input type="text" id="filter-income-search" class="form-control" style="width:240px;" placeholder="Search donor, phone, receipt..." oninput="renderIncomeTable()">
             <button class="btn" onclick="openIncomeModal()">+ Record New Income</button>
           </div>
         </div>
@@ -171,7 +358,9 @@ export const standaloneHtmlService = {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="tbody-income"></tbody>
+          <tbody id="tbody-income">
+            ${preRenderedIncomeRows || '<tr><td colspan="8" style="text-align:center; padding:20px;">No income records found.</td></tr>'}
+          </tbody>
         </table>
       </div>
     </div>
@@ -182,7 +371,7 @@ export const standaloneHtmlService = {
         <div class="card-header">
           <div class="card-title">All Expenses & Payment Vouchers</div>
           <div style="display:flex; gap: 8px;">
-            <input type="text" id="filter-expense-search" class="form-control" style="width:200px;" placeholder="Search payee / voucher..." oninput="renderExpenseTable()">
+            <input type="text" id="filter-expense-search" class="form-control" style="width:240px;" placeholder="Search payee / voucher..." oninput="renderExpenseTable()">
             <button class="btn" onclick="openExpenseModal()">+ Record New Expense</button>
           </div>
         </div>
@@ -199,7 +388,9 @@ export const standaloneHtmlService = {
               <th>Actions</th>
             </tr>
           </thead>
-          <tbody id="tbody-expense"></tbody>
+          <tbody id="tbody-expense">
+            ${preRenderedExpenseRows || '<tr><td colspan="8" style="text-align:center; padding:20px;">No expense records found.</td></tr>'}
+          </tbody>
         </table>
       </div>
     </div>
@@ -209,7 +400,10 @@ export const standaloneHtmlService = {
       <div class="card">
         <div class="card-header">
           <div class="card-title">Committee Members Directory</div>
-          <button class="btn" onclick="openMemberModal()">+ Add Member</button>
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="filter-members-search" class="form-control" style="width:260px;" placeholder="Search member by name, phone (9437080999)..." oninput="renderMembersTable()">
+            <button class="btn" onclick="openMemberModal()">+ Add Member</button>
+          </div>
         </div>
         <table>
           <thead>
@@ -221,7 +415,9 @@ export const standaloneHtmlService = {
               <th>Total Contributed</th>
             </tr>
           </thead>
-          <tbody id="tbody-members"></tbody>
+          <tbody id="tbody-members">
+            ${preRenderedMembersRows || '<tr><td colspan="5" style="text-align:center; padding:20px;">No members added.</td></tr>'}
+          </tbody>
         </table>
       </div>
     </div>
@@ -234,35 +430,35 @@ export const standaloneHtmlService = {
           <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px;">
             <div class="form-group">
               <label>Committee Name</label>
-              <input type="text" id="cfg-name" class="form-control" required>
+              <input type="text" id="cfg-name" class="form-control" value="${effectiveState.settings.committeeName}" required>
             </div>
             <div class="form-group">
               <label>Puja Year / Session</label>
-              <input type="text" id="cfg-year" class="form-control" required>
+              <input type="text" id="cfg-year" class="form-control" value="${effectiveState.settings.pujaYear}" required>
             </div>
             <div class="form-group">
               <label>Venue / Location</label>
-              <input type="text" id="cfg-venue" class="form-control" required>
+              <input type="text" id="cfg-venue" class="form-control" value="${effectiveState.settings.venue}" required>
             </div>
             <div class="form-group">
-              <label>Target Budget (₹)</label>
-              <input type="number" id="cfg-budget" class="form-control" required>
+              <label>Target Budget (${cur})</label>
+              <input type="number" id="cfg-budget" class="form-control" value="${effectiveState.settings.targetBudget}" required>
             </div>
             <div class="form-group">
               <label>President Name</label>
-              <input type="text" id="cfg-president" class="form-control">
+              <input type="text" id="cfg-president" class="form-control" value="${effectiveState.settings.presidentName || ''}">
             </div>
             <div class="form-group">
               <label>Secretary Name</label>
-              <input type="text" id="cfg-secretary" class="form-control">
+              <input type="text" id="cfg-secretary" class="form-control" value="${effectiveState.settings.secretaryName || ''}">
             </div>
             <div class="form-group">
               <label>Treasurer / Cashier Name</label>
-              <input type="text" id="cfg-treasurer" class="form-control">
+              <input type="text" id="cfg-treasurer" class="form-control" value="${effectiveState.settings.treasurerName || ''}">
             </div>
             <div class="form-group">
               <label>Contact Phone</label>
-              <input type="text" id="cfg-phone" class="form-control">
+              <input type="text" id="cfg-phone" class="form-control" value="${effectiveState.settings.contactPhone || '9437080999'}">
             </div>
           </div>
           <div style="margin-top:16px;">
@@ -295,7 +491,7 @@ export const standaloneHtmlService = {
           </select>
         </div>
         <div class="form-group">
-          <label>Amount (₹) *</label>
+          <label>Amount (${cur}) *</label>
           <input type="number" id="inc-amount" class="form-control" min="1" required>
         </div>
         <div class="form-group">
@@ -346,7 +542,7 @@ export const standaloneHtmlService = {
           </select>
         </div>
         <div class="form-group">
-          <label>Amount (₹) *</label>
+          <label>Amount (${cur}) *</label>
           <input type="number" id="exp-amount" class="form-control" min="1" required>
         </div>
         <div class="form-group">
@@ -360,7 +556,7 @@ export const standaloneHtmlService = {
         </div>
         <div class="form-group">
           <label>Authorized By</label>
-          <input type="text" id="exp-auth" class="form-control" value="${state.settings.presidentName}">
+          <input type="text" id="exp-auth" class="form-control" value="${effectiveState.settings.presidentName || ''}">
         </div>
         <div class="form-group">
           <label>Remarks</label>
@@ -386,6 +582,7 @@ export const standaloneHtmlService = {
           <label>Designation / Role</label>
           <select id="mem-role" class="form-control">
             <option>Executive Member</option>
+            <option>Executive Committee Member & Key Patron</option>
             <option>Volunteer</option>
             <option>Vice President</option>
             <option>Joint Secretary</option>
@@ -412,7 +609,7 @@ export const standaloneHtmlService = {
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;" class="no-print">
         <h3 style="font-size:15px; font-weight:bold; color:#0f172a;">Print Donation Receipt</h3>
         <div style="display:flex; gap:8px;">
-          <button class="btn" onclick="window.print()">Print Receipt (Only Receipt)</button>
+          <button class="btn" onclick="window.print()">Print Receipt</button>
           <button class="btn btn-outline" onclick="closeModal('modal-receipt-print')">Close</button>
         </div>
       </div>
@@ -453,24 +650,43 @@ export const standaloneHtmlService = {
   </div>
 
   <script>
-    // Embedded Local State
-    const STORAGE_KEY = 'BISHWAKARMA_PUJA_COMMITTEE_DATA_V2';
-    let appState = ${serializedData};
+    // Embedded Data Stamped on Save/Export
+    const EMBEDDED_VERSION = ${exportTimestamp};
+    const STORAGE_KEY = 'BISHWAKARMA_PUJA_OFFLINE_APP_STATE';
+    const STORAGE_VERSION_KEY = 'BISHWAKARMA_PUJA_OFFLINE_APP_VERSION';
+    
+    const embeddedData = ${serializedData};
+    let appState = embeddedData;
 
     try {
+      const storedVersion = Number(localStorage.getItem(STORAGE_VERSION_KEY) || '0');
       const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        appState = JSON.parse(stored);
-      } else {
+      
+      // If this file is freshly exported (EMBEDDED_VERSION >= storedVersion),
+      // or if no stored data exists, ALWAYS prioritize the data embedded in this file!
+      if (!stored || EMBEDDED_VERSION >= storedVersion) {
+        appState = embeddedData;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        localStorage.setItem(STORAGE_VERSION_KEY, String(EMBEDDED_VERSION));
+      } else {
+        // Only load stored if user made newer offline modifications in this browser
+        const parsed = JSON.parse(stored);
+        // Ensure Mr Biswaranjan (9437080999) is never dropped
+        if (embeddedData.members && !parsed.members.some(m => m.phone === '9437080999' || (m.fullName && m.fullName.toLowerCase().includes('biswaranjan')))) {
+          const biswa = embeddedData.members.find(m => m.phone === '9437080999' || (m.fullName && m.fullName.toLowerCase().includes('biswaranjan')));
+          if (biswa) parsed.members.push(biswa);
+        }
+        appState = parsed;
       }
     } catch(e) {
       console.warn('Storage read fallback', e);
+      appState = embeddedData;
     }
 
     function saveState() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        localStorage.setItem(STORAGE_VERSION_KEY, String(Date.now()));
       } catch(e) {
         console.error('Save failed', e);
       }
@@ -526,7 +742,7 @@ export const standaloneHtmlService = {
             <td><span class="tag \${item.type === 'Income' ? 'tag-cash' : 'tag-bank'}">\${item.type}</span></td>
             <td><strong>\${item.ref}</strong></td>
             <td>\${item.date}</td>
-            <td>\${item.party}</td>
+            <td><strong>\${item.party}</strong></td>
             <td>\${item.category}</td>
             <td>\${item.paymentMode}</td>
             <td style="font-weight:700; color:\${item.type === 'Income' ? '#16a34a' : '#dc2626'}">
@@ -583,15 +799,17 @@ export const standaloneHtmlService = {
     function renderIncomeTable() {
       const q = (document.getElementById('filter-income-search')?.value || '').toLowerCase();
       const list = (appState.incomes || []).filter(i => 
-        i.donorName.toLowerCase().includes(q) || i.receiptNumber.toLowerCase().includes(q) || (i.phone || '').includes(q)
+        (i.donorName || '').toLowerCase().includes(q) ||
+        (i.receiptNumber || '').toLowerCase().includes(q) ||
+        (i.phone || '').includes(q)
       );
       const tbody = document.getElementById('tbody-income');
       tbody.innerHTML = list.map(i => \`
         <tr>
           <td><strong>\${i.receiptNumber}</strong></td>
           <td>\${i.date}</td>
-          <td>\${i.donorName}</td>
-          <td>\${i.phone || '-'}</td>
+          <td><strong>\${i.donorName}</strong></td>
+          <td><strong>\${i.phone || '-'}</strong></td>
           <td>\${i.category}</td>
           <td><span class="tag tag-upi">\${i.paymentMode}</span></td>
           <td style="font-weight:700; color:#16a34a;">\${formatCur(i.amount)}</td>
@@ -608,14 +826,14 @@ export const standaloneHtmlService = {
     function renderExpenseTable() {
       const q = (document.getElementById('filter-expense-search')?.value || '').toLowerCase();
       const list = (appState.expenses || []).filter(e => 
-        e.payeeName.toLowerCase().includes(q) || e.voucherNumber.toLowerCase().includes(q)
+        (e.payeeName || '').toLowerCase().includes(q) || (e.voucherNumber || '').toLowerCase().includes(q)
       );
       const tbody = document.getElementById('tbody-expense');
       tbody.innerHTML = list.map(e => \`
         <tr>
           <td><strong>\${e.voucherNumber}</strong></td>
           <td>\${e.date}</td>
-          <td>\${e.payeeName}</td>
+          <td><strong>\${e.payeeName}</strong></td>
           <td>\${e.category}</td>
           <td><span class="tag tag-cash">\${e.paymentMode}</span></td>
           <td style="font-weight:700; color:#dc2626;">\${formatCur(e.amount)}</td>
@@ -630,18 +848,25 @@ export const standaloneHtmlService = {
     }
 
     function renderMembersTable() {
+      const q = (document.getElementById('filter-members-search')?.value || '').toLowerCase();
+      const list = (appState.members || []).filter(m => 
+        (m.fullName || '').toLowerCase().includes(q) ||
+        (m.memberCode || '').toLowerCase().includes(q) ||
+        (m.phone || '').includes(q) ||
+        (m.designation || '').toLowerCase().includes(q)
+      );
       const tbody = document.getElementById('tbody-members');
-      tbody.innerHTML = (appState.members || []).map(m => {
+      tbody.innerHTML = list.map(m => {
         return \`
           <tr>
             <td><strong>\${m.memberCode}</strong></td>
-            <td>\${m.fullName}</td>
+            <td><strong>\${m.fullName}</strong></td>
             <td><span class="tag tag-upi">\${m.designation}</span></td>
-            <td>\${m.phone}</td>
+            <td><strong>\${m.phone}</strong></td>
             <td style="color:#16a34a; font-weight:600;">\${formatCur(m.contributedAmount)}</td>
           </tr>
         \`;
-      }).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px;">No members added.</td></tr>';
+      }).join('') || '<tr><td colspan="5" style="text-align:center; padding:20px;">No matching members found.</td></tr>';
     }
 
     function populateSettingsForm() {
@@ -652,7 +877,7 @@ export const standaloneHtmlService = {
       document.getElementById('cfg-president').value = appState.settings.presidentName || '';
       document.getElementById('cfg-secretary').value = appState.settings.secretaryName || '';
       document.getElementById('cfg-treasurer').value = appState.settings.treasurerName || '';
-      document.getElementById('cfg-phone').value = appState.settings.contactPhone || '';
+      document.getElementById('cfg-phone').value = appState.settings.contactPhone || '9437080999';
     }
 
     function handleSaveSettings(e) {
@@ -750,6 +975,36 @@ export const standaloneHtmlService = {
       if (document.getElementById('view-members').style.display === 'block') renderMembersTable();
     }
 
+    function downloadUpdatedHtml() {
+      saveState();
+      const serialized = JSON.stringify(appState).replace(/</g, '\\u003c');
+      let currentDoc = document.documentElement.outerHTML;
+      
+      // Update the embedded JSON state and export timestamp
+      currentDoc = currentDoc.replace(/const embeddedData = [^;]+;/, 'const embeddedData = ' + serialized + ';');
+      currentDoc = currentDoc.replace(/const EMBEDDED_VERSION = \\d+;/, 'const EMBEDDED_VERSION = ' + Date.now() + ';');
+      
+      const fullHtml = '<!DOCTYPE html>\\n<html lang="en">' + currentDoc.substring(currentDoc.indexOf('>') + 1);
+      const blob = new Blob([fullHtml], { type: 'text/html;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'Bishwakarma_Puja_Management.html';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      alert('Saved updated Bishwakarma_Puja_Management.html! Double click to open in Chrome or Edge.');
+    }
+
+    function resetToEmbeddedData() {
+      if (confirm('Reset all offline records back to the initial data inside this HTML file?')) {
+        appState = JSON.parse(JSON.stringify(embeddedData));
+        saveState();
+        location.reload();
+      }
+    }
+
     function saveAndBackupLocal() {
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState, null, 2));
       const a = document.createElement('a');
@@ -772,7 +1027,7 @@ export const standaloneHtmlService = {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    // Exactly as requested by user prompt: "Save it as "Bishwakarma_Puja_Management.html""
+    // Exactly as requested: "Save as Bishwakarma_Puja_Management.html"
     link.download = 'Bishwakarma_Puja_Management.html';
     document.body.appendChild(link);
     link.click();

@@ -1,11 +1,11 @@
-export type UserRole = 'admin' | 'president' | 'secretary' | 'treasurer' | 'auditor' | 'viewer';
+export type UserRole = 'admin' | 'president' | 'secretary' | 'treasurer' | 'editor' | 'auditor' | 'viewer';
 
 export interface UserAccount {
   id: string;
   username: string;
   fullName: string;
   role: UserRole;
-  passwordHash: string; // stored for local offline auth
+  passwordHash: string; // stored for local/cloud auth
   mustChangePassword?: boolean;
   createdAt: string;
   lastLogin?: string;
@@ -49,6 +49,7 @@ export type MemberDesignation =
   | 'Pandal & Decoration Lead'
   | 'Prasad & Bhog Coordinator'
   | 'Executive Member'
+  | 'Executive Committee Member & Key Patron'
   | 'Advisor'
   | 'Volunteer'
   | 'Patron / Senior Member';
@@ -70,11 +71,17 @@ export interface Member {
 }
 
 /**
- * Strict role-based authorization check:
- * Only Admin, Secretary, and Treasurer are allowed to edit, add, or delete data.
+ * Role-based authorization check:
+ * Admin, President, Secretary, Treasurer, and Editor are allowed to edit, add, or delete records.
  */
 export const canEditData = (role?: UserRole): boolean => {
-  return role === 'admin' || role === 'secretary' || role === 'treasurer';
+  return (
+    role === 'admin' ||
+    role === 'president' ||
+    role === 'secretary' ||
+    role === 'treasurer' ||
+    role === 'editor'
+  );
 };
 
 export type IncomeCategory =
@@ -146,6 +153,9 @@ export interface AuditLogItem {
   action: string;
   details: string;
   user: string;
+  ipAddress?: string;
+  exactTimestamp?: string;
+  clientContext?: string;
 }
 
 export interface PujaManagementState {
